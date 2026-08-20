@@ -14,17 +14,25 @@ export function getWebhookUrl(): string {
   return process.env["N8N_WEBHOOK_URL"] || FALLBACK_WEBHOOK_URL;
 }
 
-function pickReply(data: unknown): string {
+function pickReply(data: unknown, depth = 0): string {
   if (typeof data === "string") return data;
-  if (Array.isArray(data) && data.length) return pickReply(data[0]);
+  if (depth > 4) return "";
+  if (Array.isArray(data) && data.length) return pickReply(data[0], depth + 1);
   if (data && typeof data === "object") {
-    for (const key of ["reply", "output", "text", "message", "answer"]) {
-      const value = (data as Record<string, unknown>)[key];
-      if (typeof value === "string") return value;
+    const obj = data as Record<string, unknown>;
+    for (const key of ["reply", "output", "text", "message", "answer", "content"]) {
+      if (typeof obj[key] === "string" && (obj[key] as string).trim()) return obj[key] as string;
+    }
+    for (const key of ["body", "json", "data", "result", "response"]) {
+      if (obj[key] && typeof obj[key] === "object") {
+        const nested = pickReply(obj[key], depth + 1);
+        if (nested.trim()) return nested;
+      }
     }
   }
   return "";
 }
+
 
 export async function relayChatMessage(payload: {
   message: string;
